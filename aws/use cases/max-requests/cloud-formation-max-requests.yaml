@@ -1,5 +1,24 @@
 AWSTemplateFormatVersion: 2010-09-09
 Resources:
+  maxRequestsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties: 
+      AlarmActions: 
+        - !Ref maxRequestsTopic
+      AlarmDescription: Start processing SQS when queue gets large
+      AlarmName: !Sub "maxRequestsAlarm${AWS::StackName}"
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - 
+            Name: QueueName
+            Value: !GetAtt maxRequestQueue.QueueName
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Average
+      Threshold: 1500
   maxRequestsTopic:
     Type: AWS::SNS::Topic
     Properties: 
