@@ -3,7 +3,7 @@ Some times, as developers we want to build cool new fatures on the cloud but we 
 Since it's a known pattern to decouple applications using queue management systems, to address the situation explained before, I built a simple component using AWS Step Functions, SQS and Lambda, that will buffer the requests you need to perform to this non-scalable resources such as SOAP services or REST APIs.
 
 ### Architecture
-![Architecture](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/max-requests-arch.png?raw=true)
+![Architecture](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/architecture.png?raw=true)
 
 ### How it works
 1. Push your requests to be made to SQS
