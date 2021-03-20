@@ -16,7 +16,7 @@ Since it's a known pattern to decouple applications using queue management syste
 ### AWS Step Functions Orchestration
 ![State Machine Image](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/step-graph.png?raw=true)
 
-### Test results
+### Test results
 ![Test Results](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/test-results.png?raw=true)
 
 ### Get started
