@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  maxRequestsTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      Subscription: 
+        - 
+          Endpoint: !GetAtt maxRequestsLambda.Arn
+          Protocol: lambda
+  snsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt maxRequestsLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref maxRequestsTopic
+  maxRequestsStatesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - states.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sqs:DeleteMessageBatch
+            - sqs:ReceiveMessage
+            - sqs:GetQueueAttributes
+            Resource: !GetAtt maxRequestQueue.Arn
+      - PolicyName: lambda
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource: !GetAtt maxRequestsLambda.Arn
+  maxRequestsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sqs:DeleteMessageBatch
+            - sqs:ReceiveMessage
+            - sqs:GetQueueAttributes
+            Resource: !GetAtt maxRequestQueue.Arn
+      - PolicyName: sqs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+      - PolicyName: step
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - states:ListExecutions
+            - states:StartExecution
+            Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:maxRequestStateMachine${AWS::StackName}"
+  maxRequestQueue: 
+    Type: AWS::SQS::Queue
+  maxRequestStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties: 
+      Name: "maxRequestStateMachine${AWS::StackName}"
+      RoleArn: !GetAtt maxRequestsStatesRole.Arn
+      DefinitionSubstitutions: 
+        LambdaFunction: !GetAtt maxRequestsLambda.Arn
+      DefinitionString: |- 
+        {
+          "Comment": "A Hello World example of the Amazon States Language using Pass states",
+          "StartAt": "PrepareRun",
+          "States": {
+            "PrepareRun": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${LambdaFunction}",
+                "Payload": {
+                  "Type": "Prepare"
+                }
+              },
+              "Next": "Run5Requests"
+            },
+            "Run5Requests": {
+              "Type": "Map",
+              "InputPath": "$.Payload",
+              "ItemsPath": "$.Processes",
+              "MaxConcurrency": 5,
+              "Iterator": {
+                "StartAt": "RunRequests",
+                "States": {
+                  "RunRequests": {
+                    "Type": "Task",
+                    "Resource": "arn:aws:states:::lambda:invoke",
+                    "Parameters": {
+                      "FunctionName": "${LambdaFunction}",
+                      "Payload": {
+                        "Type": "Run"
+                      }
+                    },
+                    "End": true
+                  }
+                }
+              },
+              "Next": "Assess"
+            },
+            "Assess": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${LambdaFunction}",
+                "Payload": {
+                  "Type": "Assess"
+                }
+              },
+              "Next": "Decide"
+            },
+            "Decide": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.Payload.RemainingMessages",
+                  "BooleanEquals": true,
+                  "Next": "PrepareRun"
+                }
+              ],
+              "Default": "Done"
+            },
+            "Done": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        }
+  maxRequestsLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt maxRequestsLambdaRole.Arn
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          import boto3
+          import math
+          import urllib3
+          import json
+
+          client = boto3.client('sqs')
+          stepClient = boto3.client('stepfunctions')
+          QUEUE_URL = '<REPLACE_WITH_YOUR_QUEUE_URL>'
+          WEB_SERVICE_URL = '<REPLACE_WITH_YOUR_ENDPOINT_TO_REQUEST>'
+          STATE_MACHINE = '<REPLACE_WITH_YOUR_STATE_MACHINE_ARN>'
+          BATCH_AMOUNT_WORKERS = 50
+
+          def lambda_handler(event, context):
+              runType = event.get('Type','-')
+              res = {}
+              ### PREPARES PARALLEL EXEC    
+              if(runType == "Prepare"):
+                  messages = CountMessages()
+                  res['Processes'] = min(math.ceil(messages / 10), BATCH_AMOUNT_WORKERS) * [1]
+              ### PROCESS MESSAGES
+              elif(runType == "Run"):
+                  res['Processed'] = RunRequests()
+              ### EVALUATES IF REPEAT REQUIRED
+              elif(runType == "Assess"):
+                  messages = CountMessages()
+                  res['RemainingMessages'] = messages > 0
+              ##Alarm
+              elif(runType == "-" and len(event.get('Records',[])) > 0):
+                  DefineStartExecution(json.loads(event['Records'][0]['Sns']['Message']).get('NewStateValue',None))
+              return res
+
+          def DefineStartExecution(newState):
+              if(newState == "ALARM"):
+                  response = stepClient.list_executions(stateMachineArn=STATE_MACHINE,statusFilter='RUNNING')
+                  if(len(response['executions']) == 0):
+                      responseStart = stepClient.start_execution(stateMachineArn=STATE_MACHINE,input="{\"start\" : \"by alarm\"}")
+                      print(responseStart)
+
+          def CountMessages():
+              response = client.get_queue_attributes(QueueUrl=QUEUE_URL,AttributeNames=['ApproximateNumberOfMessages'] )
+              return int(response['Attributes']['ApproximateNumberOfMessages'])
+
+          def RunRequests():
+              OK_RECORDS = []
+              response = client.receive_message(QueueUrl=QUEUE_URL,MaxNumberOfMessages=10,VisibilityTimeout=30,WaitTimeSeconds=1)
+              messages = response.get('Messages',[])
+              for msg in messages:
+                  MessageId = msg['MessageId']
+                  Body = msg['Body']
+                  ReceiptHandle = msg['ReceiptHandle']
+                  ### EXEC REQUEST
+                  callService(MessageId)
+                  OK_RECORDS.append({'Id': MessageId, 'ReceiptHandle': ReceiptHandle})
+              
+              if(len(OK_RECORDS) > 0):
+                  responseDelete = client.delete_message_batch(QueueUrl=QUEUE_URL,Entries=OK_RECORDS)
+              return len(messages)
+
+          def callService(MessageId):
+              http = urllib3.PoolManager()
+              response = http.request('GET', WEB_SERVICE_URL)
+              if response.status == 200:
+                  print("HTTPRequest for " + MessageId)
+              else:
+                  print("HTTPError for " + MessageId)
+                  print("status: " + str(response.status))
