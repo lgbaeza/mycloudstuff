@@ -14,7 +14,11 @@ Since it's a known pattern to decouple applications using queue management syste
 6. The workflow of the State Machine determines if there are still messages in SQS and repeats
 
 ### AWS Step Functions Orchestration
-![State Machine Image](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/max-requests-graph.png?raw=true)
+![State Machine Image](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/step-graph.png?raw=true)
+
+### Test results
+![Test Results](https://github.com/lgbaeza/mycloudstuff/blob/main/aws/use%20cases/max-requests/test-results.png?raw=true)
 
 ### Get started
-* [Cloud Formation with sample resources available ](https://raw.githubusercontent.com/lgbaeza/mycloudstuff/main/aws/use%20cases/max-requests/cloud-formation-max-requests.yaml)
+* [Cloud Formation with sample resources available ](https://raw.githubusercontent.com/lgbaeza/mycloudstuff/main/aws/use%20cases/max-requests/cloud-formation-template.yaml)
+
