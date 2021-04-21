@@ -50,5 +50,5 @@ Upload the HTML and JS files to the root of the static bucket
 ### 9. Open the CloudFront URL and test the functionality
 ![alt](img/cloudfront.png)
 
-### Further reading
+### Further reading
 * https://aws.amazon.com/es/blogs/industries/how-to-process-medical-text-in-multiple-languages-using-amazon-translate-and-amazon-comprehend-medical/
