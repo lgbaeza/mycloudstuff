@@ -32,7 +32,7 @@ Run the script using the following command. Make sure to setup local credentials
 python analyze.py
 ```
 
-Find some sample images with ficticious patient data at [backend/data](backend/data)
+Find some sample images with ficticious patient data at [backend/images](backend/images)
 
 Open the DynamoDB table and you will find the Items created
 ![alt](img/dynamodb.png)
