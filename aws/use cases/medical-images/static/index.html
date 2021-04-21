@@ -1,0 +1,53 @@
+<html>
+    <head>
+        <style>
+            td{
+                border: solid 1px #000;
+                width: 25%;
+            }
+            img{
+                width:300px;
+                
+            }
+            .title{
+                font-weight: bold;
+                float: left;
+                margin-right: 5px;
+            }
+            .value{
+                float: left;
+            }
+            .comprehend{
+                background-color: #df80ff;
+            }
+            .medical{
+                background-color: #4d94ff;
+            }
+            .container{
+                border: solid 1px #000;
+                padding: 10px;
+                float: left;
+                margin: 5px;
+            }
+            thead{
+                font-weight:bold;
+                background-color:gray;
+            }
+        </style>
+    </head>
+    <body onload="loaddata()">
+        <table id="myTable">
+            <tr>
+                <thead>
+                    <td width="25%">Imagen</td>
+                    <td width="25%">Texto</td>
+                    <td width="25%">Medical</td>
+                    <td width="25%">Comprehend</td>
+                </thead>
+            </tr>
+            <tbody>
+            </tbody>
+        </table>
+        <script src="script.js"></script>
+    </body>
+</html>

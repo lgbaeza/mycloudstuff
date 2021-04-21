@@ -1,0 +1,12 @@
+{
+    "version": "2.0",
+    "queryStringParameters": {
+        "key": "REPLACE-WITH-YOUR-APIKEY"
+    },
+    "requestContext": {
+        "http": {
+            "method": "GET",
+            "path": "/"
+        }
+    }
+}
