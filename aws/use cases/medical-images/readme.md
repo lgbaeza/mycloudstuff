@@ -2,7 +2,7 @@
 It is a common requirement to automate healthcare processes by analyzing printed documents. These documents might include handwriten and printed text. [Amazon Textracts supports printed text for english and spanish and handwritten text for English.](https://aws.amazon.com/es/blogs/machine-learning/amazon-textract-recognizes-handwriting-and-adds-five-new-languages/)
 This use case allows you to process a batch of medical images stored locally, detect the text, analyze it with Amazon Comprehend and Comprehend Medical, and then store the results on DynamoDB, so the results can be later reviewed on a website.
 
-### Architecture
+### Architecture
 ![architecture](architecture.png)
 
 Steps: 
@@ -49,3 +49,6 @@ Upload the HTML and JS files to the root of the static bucket
 
 ### 9. Open the CloudFront URL and test the functionality
 ![alt](img/cloudfront.png)
+
+### Further reading
+* https://aws.amazon.com/es/blogs/industries/how-to-process-medical-text-in-multiple-languages-using-amazon-translate-and-amazon-comprehend-medical/
