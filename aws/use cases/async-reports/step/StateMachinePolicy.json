@@ -1,0 +1,52 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "NotificarErrores",
+            "Effect": "Allow",
+            "Action": "sns:Publish",
+            "Resource": "arn:aws:sns:YOUR_AWS_REGION:YOUR_ACCOUNT:async-reports"
+        },
+        {
+            "Sid": "GuardarLogs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogDelivery",
+                "logs:GetLogDelivery",
+                "logs:UpdateLogDelivery",
+                "logs:DeleteLogDelivery",
+                "logs:ListLogDeliveries",
+                "logs:PutResourcePolicy",
+                "logs:DescribeResourcePolicies",
+                "logs:DescribeLogGroups"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Monitoreo",
+            "Effect": "Allow",
+            "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+                "xray:GetSamplingRules",
+                "xray:GetSamplingTargets"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "InvocarLambda",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction",
+                "lambda:InvokeAsync"
+            ],
+            "Resource": [
+                "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-report-execute",
+                "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-reports-provision",
+                "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-report-sendemail"
+            ]
+        }
+    ]
+}

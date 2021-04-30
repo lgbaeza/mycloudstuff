@@ -1,0 +1,84 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RunInstances",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:Describe*",
+                "ec2:RunInstances",
+                "ec2:CreateTags"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "RunInstanceAttachProfile",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::ACCOUNT_ID:role/AsyncReportCreationRole"
+        },
+        {
+            "Sid": "TerminateInstances",
+            "Effect": "Allow",
+            "Action": "ec2:TerminateInstances",
+            "Resource": "*",
+            "Condition": {
+                "StringLike": {
+                    "ec2:ResourceTag/AsyncReports": "True"
+                }
+            }
+        },
+        {
+            "Sid": "RunCommandDocument",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:SendCommand"
+            ],
+            "Resource": [
+                "arn:aws:ssm:*:*:document/*"
+            ]
+        },
+        {
+            "Sid": "RunCommandInstances",
+            "Effect": "Allow",
+            "Action": "ssm:SendCommand",
+            "Resource": [
+                "arn:aws:ec2:*:*:instance/*"
+            ],
+            "Condition": {
+                "StringLike": {
+                    "ssm:resourceTag/AsyncReports": "True"
+                }
+            }
+        },
+        {
+            "Sid": "CreatePreSigndDownload",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::YOUR_S3_BUCKET/async-reports/reportes/*",
+                "arn:aws:s3:::YOUR_S3_BUCKET/async-reports/templates/*"
+            ]
+        },
+        {
+            "Sid": "SendEmail",
+            "Effect": "Allow",
+            "Action": [
+                "ses:SendEmail"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Logs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:CreateLogGroup",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

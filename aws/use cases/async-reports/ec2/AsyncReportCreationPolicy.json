@@ -1,0 +1,37 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CargarReportes",
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::YOUR_S3_BUCKET/async-reports/reportes/*"
+        },
+        {
+            "Sid": "DescargarScripts",
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::YOUR_UTILITY_BUCKET/async-reports/scripts/*"
+        },
+        {
+            "Sid": "NotificarGeneracionReporte",
+            "Effect": "Allow",
+            "Action": [
+                "states:SendTaskSuccess",
+                "states:SendTaskFailure",
+                "states:SendTaskHeartbeat"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ConectarBD",
+            "Effect": "Allow",
+            "Action": [
+                "rds-db:connect"
+            ],
+            "Resource": [
+                "YOUR_DB_CLUSTER_ID/rdsiamuser"
+            ]
+        }
+    ]
+}

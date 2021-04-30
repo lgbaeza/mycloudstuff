@@ -1,0 +1,131 @@
+{
+  "Comment": "A Hello World example of the Amazon States Language using Pass states",
+  "StartAt": "Provision",
+  "States": {
+    "Provision": {
+      "Type": "Task",
+      "TimeoutSeconds": 30,
+      "Resource": "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-reports-provision",
+      "InputPath": "$",
+      "Parameters": {
+        "Action": "Provision",
+        "IdReporte.$": "$$.Execution.Id",
+        "NombreStateMachine.$": "$$.StateMachine.Name",
+        "EmailTarget.$": "$.EmailTarget"
+      },
+      "ResultPath": "$.Provision",
+      "OutputPath": "$.Provision",
+      "Catch": [
+        {
+          "ResultPath": "$.StateException",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CatchErrors"
+        }
+      ],
+      "Next": "WaitProvision"
+    },
+    "WaitProvision": {
+      "Type": "Wait",
+      "Seconds": 10,
+      "Next": "ExportReport"
+    },
+    "ExportReport": {
+      "InputPath": "$",
+      "ResultPath": "$.ExportReport",
+      "OutputPath": "$.ExportReport",
+      "Type": "Task",
+      "TimeoutSeconds": 1800,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidInstanceId"
+          ],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "async-report-execute",
+        "Payload": {
+          "TaskToken.$": "$$.Task.Token",
+          "InstanceId.$": "$.InstanceId",
+          "IdReporte.$": "$.IdReporte",
+          "EmailTarget.$": "$.EmailTarget"
+        }
+      },
+      "Catch": [
+        {
+          "ResultPath": "$.StateException",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CatchErrors"
+        }
+      ],
+      "Next": "SendEmail"
+    },
+    "SendEmail": {
+      "TimeoutSeconds": 30,
+      "Type": "Task",
+      "InputPath": "$",
+      "Resource": "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-report-sendemail",
+      "ResultPath": "$.SendEmail",
+      "OutputPath": "$.SendEmail",
+      "Catch": [
+        {
+          "ResultPath": "$.StateException",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CatchErrors"
+        }
+      ],
+      "Next": "Decommission"
+    },
+    "Decommission": {
+      "TimeoutSeconds": 30,
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:YOUR_AWS_REGION:YOUR_ACCOUNT:function:async-reports-provision",
+      "InputPath": "$",
+      "Parameters": {
+        "Action": "Decommission",
+        "IdReporte.$": "$.IdReporte",
+        "InstanceId.$": "$.InstanceId",
+        "EmailTarget.$": "$.EmailTarget"
+      },
+      "ResultPath": "$.Provision",
+      "OutputPath": "$.Provision",
+      "Catch": [
+        {
+          "ResultPath": "$.StateException",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CatchErrors"
+        }
+      ],
+      "End": true
+    },
+    "CatchErrors": {
+      "TimeoutSeconds": 30,
+      "Type": "Task",
+      "InputPath": "$",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:YOUR_AWS_REGION:YOUR_ACCOUNT:async-reports",
+        "Message.$": "$",
+        "MessageAttributes": {}
+      },
+      "Next": "InformFailure"
+    },
+    "InformFailure": {
+      "Type": "Fail",
+      "Cause": "Invalid response.",
+      "Error": "ErrorA"
+    }
+  }
+}
