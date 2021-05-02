@@ -1,0 +1,377 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  S3BUCKET:
+    Type: String
+    Default: bucketname
+  S3PREFIX:
+    Type: String
+    Default: folder/subfolder
+  UrlToProxy:
+    Type: String
+    Default: -None-
+    Description: Write -None- to use the provided sample API
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - m5.small
+      - m5.medium
+  KeyPair:
+    Type: String
+    Default: '-None-'
+  AmiID:
+    Type: AWS::EC2::Image::Id
+    Default: ami-0c94855ba95c71c99
+    Description: ami-0c94855ba95c71c99(Amazon Linux2)
+  MinInstances:
+    Type: String
+    Default: 2
+  MaxInstances:
+    Type: String
+    Default: 2
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-00000000000000000,subnet-00000000000000000
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-000000000000000000
+  nginxInboundCIDR:
+    Type: String
+    Description: "Inbound CIDR for the nginx (tipically your subnet or VPC CIDr) Examples: 10.1.0.0/16"
+Conditions:
+  KeyPairRequested: !Not
+    - !Equals
+      - !Ref KeyPair
+      - '-None-'
+  ApiGWUrlToProxy: !Equals
+    - !Ref UrlToProxy
+    - '-None-'
+Resources:
+  mTLSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: mTLSInstanceProfile
+      Path: "/"
+      Roles:
+      - !Ref mTLSInstanceRole
+  mTLSInstanceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: s3-temporal-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 's3:getObject'
+                Resource: !Sub "arn:aws:s3:::${S3BUCKET}/${S3PREFIX}/*"
+      Description: role for mtls nginx
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      RoleName: mTLSInstanceRole
+  myNLBListener:
+   Type: "AWS::ElasticLoadBalancingV2::Listener"
+   Properties:
+     DefaultActions:
+       - Type: "forward"
+         TargetGroupArn: !Ref mtlsTG
+     LoadBalancerArn: !Ref myNLB
+     Port: 443
+     Protocol: "TCP"
+  myNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Name: mtls-nlb
+      Scheme: internal
+      Subnets: !Ref Subnets
+      Type: network
+  mtlsTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: false
+      Name: mtlsTG
+      Port: 443
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      HealthCheckEnabled: true
+      HealthCheckPort: 80
+      HealthCheckProtocol: TCP
+  mtlsAutoSG:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      MinSize: !Ref MinInstances
+      MaxSize: !Ref MaxInstances
+      DesiredCapacity: !Ref MinInstances
+      LaunchTemplate:
+        LaunchTemplateId: !Ref mTlsLaunchTemplate
+        Version: !GetAtt mTlsLaunchTemplate.DefaultVersionNumber
+      VPCZoneIdentifier: !Ref Subnets
+      TargetGroupARNs: 
+      - !Ref mtlsTG
+      Tags: 
+        - Key: Name
+          Value: mtls
+          PropagateAtLaunch: true
+  mTlsLaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: 'nginxmtls'
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt mTLSInstanceProfile.Arn
+        DisableApiTermination: true
+        ImageId: !Ref AmiID
+        InstanceType: !Ref InstanceType
+        KeyName: !If
+          - KeyPairRequested
+          - !Ref KeyPair
+          - !Ref "AWS::NoValue"
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: mtls
+          -  ResourceType: volume
+             Tags:
+              - Key: Name
+                Value: mtls
+        UserData: !If
+          - ApiGWUrlToProxy
+          - Fn::Base64: !Sub |
+              #!/bin/bash
+              S3_BUCKET=${S3BUCKET}
+              S3_PREFIX=${S3PREFIX}
+              URL_TO_PROXY=https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/
+
+              yum update -y
+              sudo amazon-linux-extras install nginx1 -y
+              sudo systemctl start nginx
+              sudo systemctl enable nginx
+
+              sudo mkdir /etc/pki/nginx
+              sudo mkdir /etc/pki/nginx/private
+              sudo mkdir /etc/pki/nginx/client
+
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/rootCA.crt" "/etc/pki/nginx/server.crt"
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/rootCA.key" "/etc/pki/nginx/private/server.key"
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/client.crt" "/etc/pki/nginx/client/client.crt"
+              sudo chown nginx /etc/pki/nginx/ --recursive
+
+              sudo rm /etc/nginx/nginx.conf
+              sudo cat <<EOT >> /etc/nginx/nginx.conf
+              user nginx;
+              worker_processes auto;
+              error_log /var/log/nginx/error.log;
+              pid /run/nginx.pid;
+
+              include /usr/share/nginx/modules/*.conf;
+
+              events {
+                  worker_connections 1024;
+              }
+
+              http {
+                  sendfile            on;
+                  tcp_nopush          on;
+                  tcp_nodelay         on;
+                  keepalive_timeout   65;
+                  types_hash_max_size 4096;
+
+                  include             /etc/nginx/mime.types;
+                  default_type        application/octet-stream;
+
+                  include /etc/nginx/conf.d/*.conf;
+
+                  server {
+                      listen       80;
+                      listen       [::]:80;
+                      server_name  _;
+                      root         /usr/share/nginx/html;
+                  }
+              # Settings for a TLS enabled server.
+                  server {
+                      listen       443 ssl;
+                      server_name  _;
+                      ssl_certificate /etc/pki/nginx/server.crt;
+                      ssl_certificate_key /etc/pki/nginx/private/server.key;
+                      ssl_client_certificate /etc/pki/nginx/client/client.crt;
+                      ssl_verify_client      optional;
+                      ssl_protocols       TLSv1.2 TLSv1.3;
+                      ssl_ciphers         HIGH:!aNULL:!MD5;
+                      location / {
+                              if (\$ssl_client_verify != SUCCESS) {
+                                      return 403;
+                              }
+                              proxy_pass $URL_TO_PROXY;
+                      }
+                  }
+              }
+              EOT
+              sudo rm /usr/share/nginx/html/index.html
+              sudo cat <<EOT >> /usr/share/nginx/html/index.html
+              healthcheck: ok
+              EOT
+              sudo chown nginx /etc/nginx/nginx.conf
+              sudo chown nginx /usr/share/nginx/html/index.html
+              sudo systemctl restart nginx
+          - Fn::Base64: !Sub |
+              #!/bin/bash
+              S3_BUCKET=${S3BUCKET}
+              S3_PREFIX=${S3PREFIX}
+              URL_TO_PROXY=${UrlToProxy}
+
+              yum update -y
+              sudo amazon-linux-extras install nginx1 -y
+              sudo systemctl start nginx
+              sudo systemctl enable nginx
+
+              sudo mkdir /etc/pki/nginx
+              sudo mkdir /etc/pki/nginx/private
+              sudo mkdir /etc/pki/nginx/client
+
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/rootCA.crt" "/etc/pki/nginx/server.crt"
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/rootCA.key" "/etc/pki/nginx/private/server.key"
+              sudo aws s3 cp "s3://$S3_BUCKET/$S3_PREFIX/client.crt" "/etc/pki/nginx/client/client.crt"
+              sudo chown nginx /etc/pki/nginx/ --recursive
+
+              sudo rm /etc/nginx/nginx.conf
+              sudo cat <<EOT >> /etc/nginx/nginx.conf
+              user nginx;
+              worker_processes auto;
+              error_log /var/log/nginx/error.log;
+              pid /run/nginx.pid;
+
+              include /usr/share/nginx/modules/*.conf;
+
+              events {
+                  worker_connections 1024;
+              }
+
+              http {
+                  sendfile            on;
+                  tcp_nopush          on;
+                  tcp_nodelay         on;
+                  keepalive_timeout   65;
+                  types_hash_max_size 4096;
+
+                  include             /etc/nginx/mime.types;
+                  default_type        application/octet-stream;
+
+                  include /etc/nginx/conf.d/*.conf;
+
+                  server {
+                      listen       80;
+                      listen       [::]:80;
+                      server_name  _;
+                      root         /usr/share/nginx/html;
+                  }
+              # Settings for a TLS enabled server.
+                  server {
+                      listen       443 ssl;
+                      server_name  _;
+                      ssl_certificate /etc/pki/nginx/server.crt;
+                      ssl_certificate_key /etc/pki/nginx/private/server.key;
+                      ssl_client_certificate /etc/pki/nginx/client/client.crt;
+                      ssl_verify_client      optional;
+                      ssl_protocols       TLSv1.2 TLSv1.3;
+                      ssl_ciphers         HIGH:!aNULL:!MD5;
+                      location / {
+                              if (\$ssl_client_verify != SUCCESS) {
+                                      return 403;
+                              }
+                              proxy_pass $URL_TO_PROXY;
+                      }
+                  }
+              }
+              EOT
+              sudo rm /usr/share/nginx/html/index.html
+              sudo cat <<EOT >> /usr/share/nginx/html/index.html
+              healthcheck: ok
+              EOT
+              sudo chown nginx /etc/nginx/nginx.conf
+              sudo chown nginx /usr/share/nginx/html/index.html
+              sudo systemctl restart nginx
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: An API Gateway with a Mock Integration
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Name: mtls-mockapi
+  ApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        ConnectionType: INTERNET
+        IntegrationResponses:
+          - ResponseTemplates:
+              application/json: "{\"message\": \"OK\"}"
+            SelectionPattern: '2\d{2}'
+            StatusCode: 200
+        PassthroughBehavior: WHEN_NO_TEMPLATES
+        RequestTemplates:
+          application/json: "{\"statusCode\": 200, \"message\": \"ok\"}"
+        Type: MOCK
+        TimeoutInMillis: 29000
+      MethodResponses:
+        - ResponseModels:
+            application/json: !Ref ApiGatewayModel
+          StatusCode: 200
+      OperationName: 'mock'
+      ResourceId: !GetAtt ApiGatewayRestApi.RootResourceId
+      RestApiId: !Ref ApiGatewayRestApi
+  ApiGatewayModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      ContentType: 'application/json'
+      RestApiId: !Ref ApiGatewayRestApi
+      Schema: {}
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiGatewayDeployment
+      Description: Mock API Stage v0
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: 'dev'
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiGatewayMethod
+    Properties:
+      Description: Mock API Deployment
+      RestApiId: !Ref ApiGatewayRestApi
+  mtlSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http from the VPC
+        VpcId: !Ref VpcId
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref nginxInboundCIDR
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref nginxInboundCIDR
+Outputs:
+  UrlToProxy:
+    Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/"
+  LoadBalancerDNS:
+    Value: !Sub "https://${myNLB.DNSName}"
