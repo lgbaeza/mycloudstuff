@@ -1,0 +1,37 @@
+{
+  "Comment": "Generates sample DynamoDB dummy data",
+  "StartAt": "Prepare",
+  "States": {
+    "Prepare": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:ACCOUNTID:function:dummy-dynamodb",
+      "Parameters": {
+        "ACTION": "PREPARE",
+        "LOAD.$": "$.LOAD"
+      },
+      "Next": "RunTest"
+    },
+    "RunTest": {
+      "Type": "Map",
+      "InputPath": "$",
+      "ItemsPath": "$.items",
+      "MaxConcurrency": 200,
+      "Iterator": {
+        "StartAt": "Test",
+        "States": {
+          "Test": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:us-east-1:ACCOUNTID:function:dummy-dynamodb",
+            "Parameters": {
+              "ACTION": "RUN"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.testResults",
+      "OutputPath": "$.testResults",
+      "End": true
+    }
+  }
+}
