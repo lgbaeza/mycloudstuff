@@ -1,7 +1,7 @@
 
 
-1. Create DynamoDB Table
-1. Create Lambda Function called dummy-dynamodb
+1. Create DynamoDB Table (make sure capacity is setup as ondemand)
+1. Create Lambda Function called dummy-dynamodb (increase timeout to 3minute)
     - [lambda.py](lambda.py)
     - [names.txt](names.txt)
     - [last.txt](last.txt)
