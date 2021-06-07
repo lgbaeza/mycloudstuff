@@ -1,4 +1,8 @@
-<h1>Instalación y configuración del agente de CloudWatch</h1>
+<h1>Instalación y configuración del agente de CloudWatch en Amazon EC2</h1>
+
+Pre-requisitos:
+* La instancia EC2 debe tener un perfil de instancia (Rol IAM)
+* El perfil de instancia debe tener asociada la política <b>CloudWatchAgentServerPolicy</b>
 
 1. Descargar e instalar agente de CloudWatch: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance.html 
 
@@ -20,6 +24,8 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
     * high resolution: 1s recommended for load testing
     * default metrics config: advanced recommended for load testing
     * log file path: (glob) /path/to/logs/** (use *.txt for txt files only) 
+
+El wizard puede fallar si no se tienen configurados permisos 
 
 * Ejemplo de un archivo de config con métricas advanced:
 ````json
