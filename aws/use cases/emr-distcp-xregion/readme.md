@@ -16,9 +16,19 @@ This works for cross-account, kms encrypted destination buckets
         "source_endp": "s3.us-east-2.amazonaws.com",
         "source_s3": "s3://ursa-labs-taxi-data/",
         "dest_endp": "s3.us-east-1.amazonaws.com",
-        "$dest_s3": "s3://bucket/prefix/...",
+        "$dest_s3": "s3://bucket/prefix1/...",
         "dest_encr": "--s3ServerSideEncryption",
         "acl": "bucket-owner-full-control"
-    }]
+    },
+    {
+        "localpath": "hdfs:///local-path",
+        "source_endp": "s3.us-east-2.amazonaws.com",
+        "source_s3": "s3://nyc-tlc/trip data/",
+        "dest_endp": "s3.us-east-1.amazonaws.com",
+        "$dest_s3": "s3://bucket/prefix2/...",
+        "dest_encr": "--s3ServerSideEncryption",
+        "acl": "bucket-owner-full-control"
+    }
+    ]
 }
 ````
