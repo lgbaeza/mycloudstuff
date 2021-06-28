@@ -10,33 +10,8 @@
         "cluster_id.$": "$.cluster_id"
       },
       "Iterator": {
-        "StartAt": "EmptyHDFS",
+        "StartAt": "Copy2Local",
         "States": {
-          "EmptyHDFS": {
-            "Type": "Task",
-            "ResultPath": "$.EmptyHDFS",
-            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
-            "Parameters": {
-              "ClusterId.$": "$.cluster_id",
-              "Step": {
-                "Name": "empty hdfs",
-                "ActionOnFailure": "CANCEL_AND_WAIT",
-                "HadoopJarStep": {
-                  "Jar": "command-runner.jar",
-                  "Args.$": "States.Array('hdfs','dfs','-rm','-r',$.job.localpath)"
-                }
-              }
-            },
-            "Next": "Copy2Local",
-            "Catch": [
-              {
-                "ErrorEquals": [
-                  "States.ALL"
-                ],
-                "Next": "Copy2Local"
-              }
-            ]
-          },
           "Copy2Local": {
             "Type": "Task",
             "ResultPath": "$.Copy2Local",
@@ -69,7 +44,36 @@
                 }
               }
             },
+            "Next": "EmptyHDFS"
+          },
+          "EmptyHDFS": {
+            "Type": "Task",
+            "ResultPath": "$.EmptyHDFS",
+            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+            "Parameters": {
+              "ClusterId.$": "$.cluster_id",
+              "Step": {
+                "Name": "empty hdfs",
+                "ActionOnFailure": "CANCEL_AND_WAIT",
+                "HadoopJarStep": {
+                  "Jar": "command-runner.jar",
+                  "Args.$": "States.Array('hdfs','dfs','-rm','-r',$.job.localpath)"
+                }
+              }
+            },
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "Next": "Finish"
+              }
+            ],
             "End": true
+          },
+          "Finish": {
+            "Type": "Fail",
+            "Cause": "NotEmpty" 
           }
         }
       },
