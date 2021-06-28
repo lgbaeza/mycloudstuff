@@ -1,0 +1,79 @@
+{
+  "Comment": "This is your state machine",
+  "StartAt": "Map",
+  "States": {
+    "Map": {
+      "Type": "Map",
+      "ItemsPath": "$.items",
+      "Parameters": {
+        "job.$": "$$.Map.Item.Value",
+        "cluster_id.$": "$.cluster_id"
+      },
+      "Iterator": {
+        "StartAt": "EmptyHDFS",
+        "States": {
+          "EmptyHDFS": {
+            "Type": "Task",
+            "ResultPath": "$.EmptyHDFS",
+            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+            "Parameters": {
+              "ClusterId.$": "$.cluster_id",
+              "Step": {
+                "Name": "empty hdfs",
+                "ActionOnFailure": "CANCEL_AND_WAIT",
+                "HadoopJarStep": {
+                  "Jar": "command-runner.jar",
+                  "Args.$": "States.Array('hdfs','dfs','-rm','-r',$.job.localpath)"
+                }
+              }
+            },
+            "Next": "Copy2Local",
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "Next": "Copy2Local"
+              }
+            ]
+          },
+          "Copy2Local": {
+            "Type": "Task",
+            "ResultPath": "$.Copy2Local",
+            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+            "Parameters": {
+              "ClusterId.$": "$.cluster_id",
+              "Step": {
+                "Name": "s3distcp local",
+                "ActionOnFailure": "CANCEL_AND_WAIT",
+                "HadoopJarStep": {
+                  "Jar": "command-runner.jar",
+                  "Args.$": "States.Array('s3-dist-cp', States.Format('--s3Endpoint={}',$.job.source_endp), States.Format('--src={}',$.job.source_s3), States.Format('--dest={}',$.job.localpath))"
+                }
+              }
+            },
+            "Next": "UploadDestination"
+          },
+          "UploadDestination": {
+            "Type": "Task",
+            "ResultPath": "$.UploadDestination",
+            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+            "Parameters": {
+              "ClusterId.$": "$.cluster_id",
+              "Step": {
+                "Name": "s3distcp upload",
+                "ActionOnFailure": "CANCEL_AND_WAIT",
+                "HadoopJarStep": {
+                  "Jar": "command-runner.jar",
+                  "Args.$": "States.Array('s3-dist-cp', States.Format('--s3Endpoint={}',$.job.dest_endp), States.Format('--src={}', $.job.localpath), States.Format('--dest={}',$.job.dest_s3), $.job.dest_encr, '--deleteOnSuccess')"
+                }
+              }
+            },
+            "End": true
+          }
+        }
+      },
+      "End": true
+    }
+  }
+}

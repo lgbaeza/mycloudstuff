@@ -1,0 +1,155 @@
+{
+  "Comment": "An example of the Amazon States Language for running jobs on Amazon EMR",
+  "StartAt": "Create an EMR cluster",
+  "States": {
+    "Create an EMR cluster": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::elasticmapreduce:createCluster.sync",
+      "Parameters": {
+        "Name": "DemoStepCluster",
+        "VisibleToAllUsers": true,
+        "ReleaseLabel": "emr-5.33.0",
+        "Applications": [
+          {
+            "Name": "Hive"
+          }
+        ],
+        "ServiceRole": "arn:aws:iam::0000000:role/EMR_DefaultRole",
+        "JobFlowRole": "arn:aws:iam::0000000:instance-profile/EMR_EC2_DefaultRole",
+        "LogUri": "s3://bucket-name/logs/emr/",
+        "Instances": {
+          "KeepJobFlowAliveWhenNoSteps": true,
+          "Ec2SubnetId": "subnet-000000",
+          "InstanceFleets": [
+            {
+              "Name": "MyMasterFleet",
+              "InstanceFleetType": "MASTER",
+              "TargetOnDemandCapacity": 1,
+              "InstanceTypeConfigs": [
+                {
+                  "InstanceType": "m5.xlarge"
+                }
+              ]
+            },
+            {
+              "Name": "MyCoreFleet",
+              "InstanceFleetType": "CORE",
+              "TargetOnDemandCapacity": 1,
+              "InstanceTypeConfigs": [
+                {
+                  "InstanceType": "m5.xlarge"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.cluster",
+      "Next": "Cleanup"
+    },
+    "Cleanup": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+      "Parameters": {
+        "ClusterId.$": "$.cluster.ClusterId",
+        "Step": {
+          "Name": "My first EMR step",
+          "ActionOnFailure": "CONTINUE",
+          "HadoopJarStep": {
+            "Jar": "s3://us-east-1.elasticmapreduce/libs/script-runner/script-runner.jar",
+            "Args": [
+              "s3://s3-bucket/demostepemr-scripts/emrscript.sh",
+              "CLEAN"
+            ]
+          }
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": "$.Cleanup",
+      "Next": "Get Data"
+    },
+    "Get Data": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+      "Parameters": {
+        "ClusterId.$": "$.cluster.ClusterId",
+        "Step": {
+          "Name": "My first EMR step",
+          "ActionOnFailure": "CONTINUE",
+          "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+              "s3-dist-cp",
+              "--src=s3://s3-bucket/sampledata/nyc-taxi/",
+              "--dest=s3://s3-bucket/demostepemr/raw/"
+            ]
+          }
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": "$.GetData",
+      "Next": "Parallel"
+    },
+    "Parallel": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "Query Data",
+          "States": {
+            "Query Data": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+              "Parameters": {
+                "QueryString": "SELECT vendor_id,sum(cast(fare_amount as int)) as total FROM demoemr.raw group by vendor_id order by total desc",
+                "WorkGroup": "primary"
+              },
+              "Next": "Get Results",
+              "ResultPath": "$.QueryData"
+            },
+            "Get Results": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::athena:getQueryResults",
+              "Parameters": {
+                "QueryExecutionId.$": "$.QueryData.QueryExecution.QueryExecutionId"
+              },
+              "End": true,
+              "ResultPath": "$.GetResults"
+            }
+          }
+        },
+        {
+          "StartAt": "Terminate Cluster",
+          "States": {
+            "Terminate Cluster": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::elasticmapreduce:terminateCluster",
+              "Parameters": {
+                "ClusterId.$": "$.cluster.ClusterId"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "End": true
+    }
+  }
+}
