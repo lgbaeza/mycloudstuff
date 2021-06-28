@@ -1,6 +1,11 @@
 # S3DistCP cross region
 
+This works for cross-account, kms encrypted destination buckets
+
 * Create state machine [sample](stepfunctions.json)
+* Add policy to destination bucket
+* Add permission for destination account CMK to use on source account
+* Add permission in source EMR EC2 profile to use destination bucket and CMK
 * Run
 
 ````json
@@ -12,7 +17,8 @@
         "source_s3": "s3://ursa-labs-taxi-data/",
         "dest_endp": "s3.us-east-1.amazonaws.com",
         "$dest_s3": "s3://bucket/prefix/...",
-        "dest_encr": "--s3ServerSideEncryption"
+        "dest_encr": "--s3ServerSideEncryption",
+        "acl": "bucket-owner-full-control"
     }]
 }
 ````

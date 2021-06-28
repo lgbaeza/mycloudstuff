@@ -44,6 +44,23 @@
                 }
               }
             },
+            "Next": "PutACL"
+          },
+          "PutACL": {
+            "Type": "Task",
+            "ResultPath": "$.PutACL",
+            "Resource": "arn:aws:states:::elasticmapreduce:addStep.sync",
+            "Parameters": {
+              "ClusterId.$": "$.cluster_id",
+              "Step": {
+                "Name": "s3 putacl",
+                "ActionOnFailure": "CANCEL_AND_WAIT",
+                "HadoopJarStep": {
+                  "Jar": "s3://us-east-1.elasticmapreduce/libs/script-runner/script-runner.jar",
+                  "Args.$": "States.Array('s3://s3-bucket/demostepemr-scripts/emrputs3acl.sh', $.job.dest_s3, $.job.acl)"
+                }
+              }
+            },
             "Next": "EmptyHDFS"
           },
           "EmptyHDFS": {
@@ -73,7 +90,7 @@
           },
           "Finish": {
             "Type": "Fail",
-            "Cause": "NotEmpty" 
+            "Cause": "NotEmpty"
           }
         }
       },
