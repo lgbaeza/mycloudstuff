@@ -135,3 +135,12 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a 
 ````bash
 cat /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log or /var/log/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.log
 ````
+
+
+## Errores conocidos:
+"Error parsing /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.toml, open /usr/share/collectd/types.db: no such file or directory"
+* ejecute lo siguiente:
+````bash
+sudo mkdir -p /usr/share/collectd/
+sudo touch /usr/share/collectd/types.db
+````

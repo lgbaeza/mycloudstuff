@@ -57,7 +57,7 @@
                 "ActionOnFailure": "CANCEL_AND_WAIT",
                 "HadoopJarStep": {
                   "Jar": "s3://us-east-1.elasticmapreduce/libs/script-runner/script-runner.jar",
-                  "Args.$": "States.Array('s3://s3-bucket/demostepemr-scripts/emrputs3acl.sh', $.job.dest_s3, $.job.acl)"
+                  "Args.$": "States.Array('s3://s3-bucket/demostepemr-scripts/emrputs3acl.sh', $.job.dest_s3, $.job.acl, $.job.cmk_arn)"
                 }
               }
             },
