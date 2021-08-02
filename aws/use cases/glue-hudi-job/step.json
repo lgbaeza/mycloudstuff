@@ -1,0 +1,37 @@
+{
+  "Comment": "Run Hudi ETLs for all tables",
+  "StartAt": "RunETLs",
+  "States": {
+    "RunETLs": {
+      "Type": "Map",
+      "InputPath": "$",
+      "Parameters": {
+        "table_data.$": "$$.Map.Item.Value",
+        "load_type.$": "$.load_type"
+      },
+      "ItemsPath": "$.tables",
+      "MaxConcurrency": 10,
+      "Iterator": {
+        "StartAt": "RunHudi",
+        "States": {
+          "RunHudi": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {
+              "JobName": "demo-hudiload",
+              "Arguments": {
+                "--tablename.$": "$.table_data.tablename",
+                "--precombine_field.$": "$.table_data.precombine_field",
+                "--pk_col.$": "$.table_data.pk_col",
+                "--partition_field.$": "$.table_data.partition_field",
+                "--load_type.$": "$.load_type"
+              }
+            },
+            "End": true
+          }
+        }
+      },
+      "End": true
+    }
+  }
+}
