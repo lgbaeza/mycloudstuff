@@ -33,7 +33,7 @@ dynamicframe_relational = dynamicframe_resolveChoice.relationalize("root","/home
 dynamicframe_relational = dynamicframe_relational.select(list(dynamicframe_relational.keys())[0])
 
 #Write data
-glueContext.write_dynamic_frame.from_options(frame = dynamicframe_resolveChoice,
+glueContext.write_dynamic_frame.from_options(frame = dynamicframe_relational,
                             connection_type = "s3", 
                             format = "parquet",
                             transformation_ctx = "datasink",
