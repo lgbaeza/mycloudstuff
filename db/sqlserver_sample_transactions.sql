@@ -1,9 +1,14 @@
 ---- Luis Gerardo Baeza
 ---- Sample transaction table
 ---- SQL Server
+---- Be sure to adjust permissions according to least privileges and your org policies
+---- To be used on internal databases, never internet-reachable databases
+---- Luis Gerardo Baeza
+---- Sample transaction table
+---- SQL Server
 
 
--- #### Create table
+-- #### Create SQL Server table
 CREATE TABLE transactions (
   tx_id int,
   tx_date DATE,
@@ -31,19 +36,10 @@ END;
 select * from erp.dbo.transactions;
 
 
--- ### Create BQ Table
-CREATE TABLE erp_sqlserver.transactions (
-  tx_id INT64,
-  tx_date DATE,
-  amount FLOAT64
-);
-
-
 -- #### Create user
-CREATE LOGIN dataflow WITH PASSWORD = 'D4t4fl0w!'; 
+CREATE or replace LOGIN dataflow WITH PASSWORD = 'D4t4fl0w!'; 
 CREATE USER dataflow_user for login dataflow;
-GRANT ALL ON database::erp TO dataflow_user;
-GRANT ALL ON erp.dbo.transactions TO dataflow_user;
+GRANT ALL PRIVILEGES ON database::erp TO dataflow_user;
 
 -- #### Test user
 EXECUTE AS USER = 'dataflow_user';
