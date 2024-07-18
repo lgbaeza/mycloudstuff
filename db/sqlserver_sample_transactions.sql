@@ -33,7 +33,7 @@ BEGIN
 
 END;
 
-select * from erp.dbo.transactions;
+select count(1) from erp.dbo.transactions;
 
 
 -- #### Create user
